@@ -201,9 +201,22 @@ def load_artifacts():
 
 @st.cache_data(show_spinner=False)
 def load_dataset():
-    """Auto-detect any tourism CSV in data/ or root directory."""
-    KEY_COLS = {"place_name", "category", "city", "place_ratings",
-                "rating", "nama", "kategori", "kota"}
+    """Auto-detect tourism destination CSV — pilih file dengan kolom paling lengkap."""
+    # Kolom penting destinasi (makin banyak cocok = makin prioritas)
+    PRIORITY_COLS = {
+        "place_name", "placename",
+        "category", "kategori",
+        "price", "harga",
+        "place_ratings", "place_rating",
+        "rating_count", "jumlah_ulasan",
+        "lat", "latitude",
+        "long", "lon", "longitude",
+        "description", "deskripsi",
+    }
+    # Kolom wajib minimal ada — kalau tidak ada salah satunya, skip file ini
+    REQUIRED_COLS = {"place_name", "placename", "category", "kategori", "price", "harga"}
+    # File yang diketahui BUKAN dataset destinasi — skip
+    SKIP_FILENAMES = {"package_tourism", "tourism_rating", "user", "users"}
 
     search_dirs = [Path("data"), Path(".")]
     candidates = []
@@ -211,15 +224,28 @@ def load_dataset():
         if d.exists():
             candidates += sorted(d.glob("*.csv"))
 
+    best_df    = None
+    best_score = -1
+
     for p in candidates:
+        # Skip file yang diketahui bukan dataset destinasi
+        stem_lower = p.stem.lower().replace("-", "_").replace(" ", "_")
+        if any(skip in stem_lower for skip in SKIP_FILENAMES):
+            continue
         try:
-            df_peek = pd.read_csv(p, nrows=5)
+            df_peek   = pd.read_csv(p, nrows=5)
             cols_lower = {c.strip().lower() for c in df_peek.columns}
-            if cols_lower & KEY_COLS:
-                return pd.read_csv(p)
+            # Harus punya minimal satu kolom wajib
+            if not (cols_lower & REQUIRED_COLS):
+                continue
+            # Skor = jumlah kolom prioritas yang cocok
+            score = len(cols_lower & PRIORITY_COLS)
+            if score > best_score:
+                best_score = score
+                best_df    = pd.read_csv(p)
         except Exception:
             continue
-    return None
+    return best_df
 
 models_loaded = False
 load_error    = ""
