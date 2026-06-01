@@ -498,22 +498,43 @@ elif page == "Output":
             df = dataset.copy()
             df.columns = [c.strip() for c in df.columns]
 
-            # Flexible column detection
+            # Flexible column detection - exact match dulu, lalu partial/substring
             def find_col(df, *variants):
+                # Pass 1: exact match (case-insensitive, strip whitespace)
                 for c in df.columns:
-                    if c.lower() in variants:
+                    if c.strip().lower() in variants:
                         return c
+                # Pass 2: substring match
+                for c in df.columns:
+                    cl = c.strip().lower().replace(" ", "_")
+                    for v in variants:
+                        if v in cl or cl in v:
+                            return c
                 return None
 
-            name_col   = find_col(df, "place_name","nama_wisata","name","place name")
-            cat_col    = find_col(df, "category","kategori","cat")
-            city_col   = find_col(df, "city","kota")
-            price_col  = find_col(df, "price","harga","ticket_price","price_idr")
-            rating_col = find_col(df, "place_ratings","place_rating","rating","avg_rating")
-            cnt_col    = find_col(df, "rating_count","jumlah_ulasan","count","num_ratings","total_ratings")
-            lat_col    = find_col(df, "lat","latitude")
-            lon_col    = find_col(df, "long","lon","longitude","lng")
-            desc_col   = find_col(df, "description","deskripsi","desc")
+            name_col   = find_col(df,
+                "place_name", "placename", "place name",
+                "nama_wisata", "nama_tempat", "nama", "name", "tempat")
+            cat_col    = find_col(df,
+                "category", "kategori", "cat", "type", "tipe", "jenis")
+            city_col   = find_col(df,
+                "city", "kota", "kabupaten", "daerah", "location", "lokasi")
+            price_col  = find_col(df,
+                "price", "harga", "ticket_price", "price_idr", "tiket",
+                "entrance_fee", "harga_tiket", "biaya")
+            rating_col = find_col(df,
+                "place_ratings", "place_rating", "rating", "avg_rating",
+                "average_rating", "ratings", "nilai", "score")
+            cnt_col    = find_col(df,
+                "rating_count", "jumlah_ulasan", "count", "num_ratings",
+                "total_ratings", "ulasan", "review_count", "reviews",
+                "jumlah_rating")
+            lat_col    = find_col(df,
+                "lat", "latitude", "lintang")
+            lon_col    = find_col(df,
+                "long", "lon", "lng", "longitude", "bujur")
+            desc_col   = find_col(df,
+                "description", "deskripsi", "desc", "keterangan", "detail")
 
             # Show detected columns (collapsed)
             with st.expander("Info kolom dataset yang terdeteksi", expanded=False):
