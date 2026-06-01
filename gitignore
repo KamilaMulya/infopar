@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Dataset (jangan upload ke GitHub — terlalu besar)
+data/
+*.csv
+
+# Model files — WAJIB di-upload agar Streamlit bisa berjalan
+# Hapus baris di bawah ini jika ukuran .pkl kamu masih di bawah 100 MB
+# models/*.pkl
