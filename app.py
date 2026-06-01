@@ -282,15 +282,6 @@ with st.sidebar:
         }[x]
     )
 
-    st.markdown('<div style="border-top:1px solid rgba(255,255,255,0.08);margin:1rem 0;"></div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="font-size:0.78rem;color:#64748b;line-height:1.7;">
-        <b style="color:#94a3b8;">Dataset</b><br>Indonesia Tourism Destination<br>
-        <b style="color:#94a3b8;">Sumber</b><br>Kaggle · aprabowo<br>
-        <b style="color:#94a3b8;">Model</b><br>XGBoost &amp; Random Forest
-    </div>
-    """, unsafe_allow_html=True)
-
 # ═════════════════════════════════════════════════════════════════════════════
 #  PAGE 1 — BERANDA
 # ═════════════════════════════════════════════════════════════════════════════
