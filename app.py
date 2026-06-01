@@ -201,14 +201,24 @@ def load_artifacts():
 
 @st.cache_data(show_spinner=False)
 def load_dataset():
-    """Load raw dataset for classification queries."""
-    candidates = [
-        "tourism_with_id.csv", "data/tourism_with_id.csv",
-        "dataset.csv", "data/dataset.csv",
-    ]
+    """Auto-detect any tourism CSV in data/ or root directory."""
+    KEY_COLS = {"place_name", "category", "city", "place_ratings",
+                "rating", "nama", "kategori", "kota"}
+
+    search_dirs = [Path("data"), Path(".")]
+    candidates = []
+    for d in search_dirs:
+        if d.exists():
+            candidates += sorted(d.glob("*.csv"))
+
     for p in candidates:
-        if Path(p).exists():
-            return pd.read_csv(p)
+        try:
+            df_peek = pd.read_csv(p, nrows=5)
+            cols_lower = {c.strip().lower() for c in df_peek.columns}
+            if cols_lower & KEY_COLS:
+                return pd.read_csv(p)
+        except Exception:
+            continue
     return None
 
 models_loaded = False
@@ -578,37 +588,64 @@ elif page == "Output":
                 filtered = filtered.copy()
                 filtered["_Prediksi"] = preds
 
-                # Only show "Populer"
-                populer_df = filtered[filtered["_Prediksi"] == "Populer"].reset_index(drop=True)
+                populer_df    = filtered[filtered["_Prediksi"] == "Populer"].reset_index(drop=True)
+                tdk_populer_df = filtered[filtered["_Prediksi"] == "Tidak Populer"].reset_index(drop=True)
 
                 st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+                # Summary chips
                 st.markdown(f"""
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;">
-                    <div style="font-size:1rem;font-weight:700;color:#0f172a;">
-                        Ditemukan <span style="color:#2563EB;">{len(populer_df)}</span> destinasi populer
-                        dari <span style="color:#64748b;">{len(filtered)}</span> total hasil filter
+                <div style="display:flex;gap:12px;margin-bottom:1.2rem;flex-wrap:wrap;">
+                    <div style="background:#ecfdf5;border:1.5px solid #6ee7b7;border-radius:10px;
+                        padding:0.6rem 1.1rem;display:flex;align-items:center;gap:8px;">
+                        {ICONS['check']}
+                        <span style="font-weight:700;color:#065f46;">Populer: {len(populer_df)} destinasi</span>
+                    </div>
+                    <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;
+                        padding:0.6rem 1.1rem;display:flex;align-items:center;gap:8px;">
+                        {ICONS['x']}
+                        <span style="font-weight:700;color:#991b1b;">Tidak Populer: {len(tdk_populer_df)} destinasi</span>
+                    </div>
+                    <div style="background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:10px;
+                        padding:0.6rem 1.1rem;">
+                        <span style="font-weight:600;color:#475569;">Total hasil filter: {len(filtered)} destinasi</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                if len(populer_df) == 0:
-                    st.info("Tidak ada destinasi yang diprediksi populer dengan filter ini.")
-                else:
-                    # Daftar destinasi
+                def render_dest_map(dest_df, label, accent, bg, border, icon_html):
+                    """Render list + map for a group of destinations."""
+                    if len(dest_df) == 0:
+                        st.info(f"Tidak ada destinasi {label} dengan filter ini.")
+                        return
+
                     col_list, col_map_view = st.columns([1, 1], gap="large")
 
                     with col_list:
-                        st.markdown(f'<div class="section-header">{icon("list")} Daftar Destinasi Populer</div>', unsafe_allow_html=True)
-                        for i, row in populer_df.head(30).iterrows():
-                            nm   = row[name_col]  if name_col  else f"Destinasi {i+1}"
-                            ct   = row[city_col]  if city_col  else "-"
-                            cat  = row[cat_col]   if cat_col   else "-"
-                            pr   = f"Rp {int(row[price_col]):,}" if price_col else "-"
-                            rt   = f"{row[rating_col]:.1f}" if rating_col else "-"
-                            rc   = f"{int(row[cnt_col]):,} ulasan" if cnt_col else ""
+                        st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.8rem;">
+                            {icon_html}
+                            <span style="font-weight:700;font-size:0.95rem;color:#0f172a;">
+                                Daftar Destinasi {label}
+                            </span>
+                            <span style="background:{bg};border:1px solid {border};border-radius:6px;
+                                padding:2px 10px;font-size:0.8rem;font-weight:700;color:{accent};">
+                                {len(dest_df)}
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        for i, row in dest_df.head(30).iterrows():
+                            nm  = row[name_col]  if name_col  else f"Destinasi {i+1}"
+                            ct  = row[city_col]  if city_col  else "-"
+                            cat = row[cat_col]   if cat_col   else "-"
+                            pr  = f"Rp {int(row[price_col]):,}" if price_col else "-"
+                            rt  = f"{row[rating_col]:.1f}" if rating_col else "-"
+                            rc  = f"{int(row[cnt_col]):,} ulasan" if cnt_col else ""
+                            card_border = f"border-left:3px solid {accent};"
                             st.markdown(f"""
-                            <div class="dest-card">
-                                <div class="dest-rank">{i+1}</div>
+                            <div class="dest-card" style="{card_border}">
+                                <div class="dest-rank" style="background:{bg};color:{accent};">{i+1}</div>
                                 <div style="flex:1">
                                     <div class="dest-name">{nm}</div>
                                     <div class="dest-meta">
@@ -623,38 +660,48 @@ elif page == "Output":
                             """, unsafe_allow_html=True)
 
                     with col_map_view:
-                        st.markdown(f'<div class="section-header">{icon("map")} Peta Lokasi</div>', unsafe_allow_html=True)
-                        if lat_col and lon_col:
-                            map_df = populer_df[[name_col, lat_col, lon_col, city_col, rating_col, cat_col]].copy() if all(
-                                c for c in [name_col, lat_col, lon_col]) else None
-                            if map_df is not None:
-                                map_df = map_df.dropna(subset=[lat_col, lon_col]).head(30)
-                                map_df.columns = ["Nama", "lat", "lon", "Kota", "Rating", "Kategori"][:len(map_df.columns)]
-                                if len(map_df) > 0:
-                                    fig_map = px.scatter_mapbox(
-                                        map_df,
-                                        lat="lat", lon="lon",
-                                        hover_name="Nama" if "Nama" in map_df.columns else None,
-                                        hover_data={c: True for c in ["Kota","Rating","Kategori"] if c in map_df.columns},
-                                        color="Rating" if "Rating" in map_df.columns else None,
-                                        color_continuous_scale="Blues",
-                                        size_max=14,
-                                        zoom=4.5,
-                                        height=520,
-                                    )
-                                    fig_map.update_traces(marker=dict(size=12))
-                                    fig_map.update_layout(
-                                        mapbox_style="open-street-map",
-                                        margin=dict(l=0, r=0, t=0, b=0),
-                                        coloraxis_colorbar=dict(title="Rating"),
-                                        font=dict(family="Plus Jakarta Sans"),
-                                    )
-                                    st.plotly_chart(fig_map, use_container_width=True)
+                        st.markdown(f'<div class="section-header">{icon("map")} Peta Lokasi — {label}</div>', unsafe_allow_html=True)
+                        if lat_col and lon_col and name_col:
+                            map_cols = [c for c in [name_col, lat_col, lon_col, city_col, rating_col, cat_col] if c]
+                            map_df   = dest_df[map_cols].dropna(subset=[lat_col, lon_col]).head(30).copy()
+                            rename   = {name_col: "Nama", lat_col: "lat", lon_col: "lon"}
+                            if city_col:   rename[city_col]   = "Kota"
+                            if rating_col: rename[rating_col] = "Rating"
+                            if cat_col:    rename[cat_col]    = "Kategori"
+                            map_df.rename(columns=rename, inplace=True)
+
+                            if len(map_df) > 0:
+                                color_scale = "Greens" if label == "Populer" else "Reds"
+                                fig_map = px.scatter_mapbox(
+                                    map_df,
+                                    lat="lat", lon="lon",
+                                    hover_name="Nama" if "Nama" in map_df.columns else None,
+                                    hover_data={c: True for c in ["Kota","Rating","Kategori"] if c in map_df.columns},
+                                    color="Rating" if "Rating" in map_df.columns else None,
+                                    color_continuous_scale=color_scale,
+                                    zoom=4.5,
+                                    height=480,
+                                )
+                                fig_map.update_traces(marker=dict(size=12))
+                                fig_map.update_layout(
+                                    mapbox_style="open-street-map",
+                                    margin=dict(l=0, r=0, t=0, b=0),
+                                    coloraxis_colorbar=dict(title="Rating"),
+                                    font=dict(family="Plus Jakarta Sans"),
+                                )
+                                st.plotly_chart(fig_map, use_container_width=True)
                         else:
-                            st.info(
-                                "Kolom latitude/longitude tidak ditemukan di dataset. "
-                                "Pastikan dataset memiliki kolom `Lat` dan `Long` untuk menampilkan peta."
-                            )
+                            st.info("Kolom latitude/longitude tidak ditemukan di dataset.")
+
+                # Render Populer
+                st.markdown(f'<div class="section-header" style="color:#065f46;">{ICONS["check"]} Destinasi Populer</div>', unsafe_allow_html=True)
+                render_dest_map(populer_df, "Populer", "#059669", "#ecfdf5", "#6ee7b7", ICONS["check"])
+
+                st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+                # Render Tidak Populer
+                st.markdown(f'<div class="section-header" style="color:#991b1b;">{ICONS["x"]} Destinasi Tidak Populer</div>', unsafe_allow_html=True)
+                render_dest_map(tdk_populer_df, "Tidak Populer", "#dc2626", "#fef2f2", "#fca5a5", ICONS["x"])
 
     # ──────────────────────────────────────────────────────────────────────────
     #  TAB 2 — PREDIKSI
