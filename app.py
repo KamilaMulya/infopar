@@ -490,82 +490,120 @@ elif page == "Output":
 
         if dataset is None:
             st.warning(
-                "Dataset tidak ditemukan. Pastikan file CSV dataset (misalnya `tourism_with_id.csv`) "
-                "ada di direktori yang sama dengan `app.py`, atau di subfolder `data/`."
+                "Dataset tidak ditemukan. Pastikan minimal satu file `.csv` ada di folder `data/` "
+                "dengan kolom seperti `Place_Name`, `Category`, `City`, `Price`, `Place_Ratings`, `Rating_Count`."
             )
         else:
             # Normalise column names
             df = dataset.copy()
-            col_map = {c.lower().replace(" ", "_"): c for c in df.columns}
             df.columns = [c.strip() for c in df.columns]
 
-            # Detect columns
-            cat_col    = next((c for c in df.columns if c.lower() in ["category","kategori"]),        None)
-            city_col   = next((c for c in df.columns if c.lower() in ["city","kota"]),                None)
-            price_col  = next((c for c in df.columns if c.lower() in ["price","harga"]),              None)
-            name_col   = next((c for c in df.columns if c.lower() in ["place_name","nama_wisata","name"]), None)
-            rating_col = next((c for c in df.columns if c.lower() in ["place_ratings","rating","place_rating"]), None)
-            cnt_col    = next((c for c in df.columns if c.lower() in ["rating_count","jumlah_ulasan","count"]), None)
-            lat_col    = next((c for c in df.columns if c.lower() in ["lat","latitude"]),             None)
-            lon_col    = next((c for c in df.columns if c.lower() in ["long","lon","longitude"]),     None)
-            desc_col   = next((c for c in df.columns if c.lower() in ["description","deskripsi"]),    None)
+            # Flexible column detection
+            def find_col(df, *variants):
+                for c in df.columns:
+                    if c.lower() in variants:
+                        return c
+                return None
 
-            # Filter UI
+            name_col   = find_col(df, "place_name","nama_wisata","name","place name")
+            cat_col    = find_col(df, "category","kategori","cat")
+            city_col   = find_col(df, "city","kota")
+            price_col  = find_col(df, "price","harga","ticket_price","price_idr")
+            rating_col = find_col(df, "place_ratings","place_rating","rating","avg_rating")
+            cnt_col    = find_col(df, "rating_count","jumlah_ulasan","count","num_ratings","total_ratings")
+            lat_col    = find_col(df, "lat","latitude")
+            lon_col    = find_col(df, "long","lon","longitude","lng")
+            desc_col   = find_col(df, "description","deskripsi","desc")
+
+            # Show detected columns (collapsed)
+            with st.expander("Info kolom dataset yang terdeteksi", expanded=False):
+                det_df = pd.DataFrame({
+                    "Fitur": ["Nama Destinasi","Kategori","Kota","Harga","Rating","Jml Ulasan","Latitude","Longitude"],
+                    "Kolom di CSV": [
+                        name_col or "TIDAK DITEMUKAN", cat_col or "TIDAK DITEMUKAN",
+                        city_col or "TIDAK DITEMUKAN", price_col or "TIDAK DITEMUKAN",
+                        rating_col or "TIDAK DITEMUKAN", cnt_col or "TIDAK DITEMUKAN",
+                        lat_col or "TIDAK DITEMUKAN", lon_col or "TIDAK DITEMUKAN",
+                    ]
+                })
+                st.dataframe(det_df, hide_index=True, use_container_width=True)
+                st.caption(f"Semua kolom CSV: {', '.join(df.columns.tolist())}")
+
+            # Filter inputs
             fc1, fc2 = st.columns(2)
             with fc1:
                 sel_cat = st.multiselect(
                     "Jenis Destinasi",
-                    options=sorted(df[cat_col].dropna().unique()) if cat_col else [],
+                    options=sorted(df[cat_col].dropna().unique().tolist()) if cat_col else [],
                     placeholder="Semua kategori",
                 )
-                price_min_v = int(df[price_col].min()) if price_col else 0
-                price_max_v = int(df[price_col].max()) if price_col else 500_000
-                price_range = st.slider(
-                    "Rentang Harga Tiket Masuk (IDR)",
-                    min_value=price_min_v,
-                    max_value=price_max_v,
-                    value=(price_min_v, price_max_v),
-                    step=5_000,
-                ) if price_col else None
+                if price_col:
+                    price_min_v = int(df[price_col].min())
+                    price_max_v = int(df[price_col].max())
+                    step_p = max(1000, (price_max_v - price_min_v) // 100)
+                    price_range = st.slider(
+                        "Rentang Harga Tiket Masuk (IDR)",
+                        min_value=price_min_v, max_value=price_max_v,
+                        value=(price_min_v, price_max_v), step=step_p,
+                    )
+                else:
+                    price_range = None
+                    st.caption("Kolom harga tidak ditemukan di dataset.")
 
             with fc2:
                 sel_city = st.multiselect(
                     "Daerah / Kota",
-                    options=sorted(df[city_col].dropna().unique()) if city_col else [],
+                    options=sorted(df[city_col].dropna().unique().tolist()) if city_col else [],
                     placeholder="Semua kota",
                 )
-                cnt_max_v = int(df[cnt_col].max()) if cnt_col else 10_000
-                cnt_range = st.slider(
-                    "Jumlah Ulasan",
-                    min_value=0,
-                    max_value=cnt_max_v,
-                    value=(0, cnt_max_v),
-                    step=10,
-                ) if cnt_col else None
+                if cnt_col:
+                    min_cnt = st.number_input(
+                        "Minimal Jumlah Ulasan",
+                        min_value=int(df[cnt_col].min()),
+                        max_value=int(df[cnt_col].max()),
+                        value=int(df[cnt_col].min()), step=10,
+                    )
+                else:
+                    min_cnt = None
+                    st.caption("Kolom jumlah ulasan tidak ditemukan di dataset.")
 
-            min_rating = st.slider(
-                "Rating Minimum Destinasi",
-                min_value=1.0, max_value=5.0, value=3.0, step=0.1
-            ) if rating_col else None
+            if rating_col:
+                min_rating = st.slider(
+                    "Minimal Rating Destinasi",
+                    min_value=float(round(df[rating_col].min(), 1)),
+                    max_value=float(round(df[rating_col].max(), 1)),
+                    value=float(round(df[rating_col].min(), 1)),
+                    step=0.1,
+                )
+            else:
+                min_rating = None
+                st.caption("Kolom rating tidak ditemukan di dataset.")
 
-            # Apply filters
-            filtered = df.copy()
-            if cat_col  and sel_cat:  filtered = filtered[filtered[cat_col].isin(sel_cat)]
-            if city_col and sel_city: filtered = filtered[filtered[city_col].isin(sel_city)]
-            if price_col and price_range:
-                filtered = filtered[(filtered[price_col] >= price_range[0]) &
-                                    (filtered[price_col] <= price_range[1])]
-            if cnt_col and cnt_range:
-                filtered = filtered[(filtered[cnt_col] >= cnt_range[0]) &
-                                    (filtered[cnt_col] <= cnt_range[1])]
-            if rating_col and min_rating is not None:
-                filtered = filtered[filtered[rating_col] >= min_rating]
+            run_btn = st.button("Tampilkan Hasil Klasifikasi", type="primary")
 
-            # Predict popularity for filtered rows (use best model)
-            best_model = xgb_model if metrics["xgb"]["accuracy"] >= metrics["rf"]["accuracy"] else rf_model
+            if not run_btn:
+                st.markdown(
+                    '<div style="color:#64748b;font-size:0.88rem;margin-top:0.4rem;">' +
+                    'Atur filter di atas lalu klik tombol untuk melihat hasil klasifikasi.</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                # Apply filters
+                filtered = df.copy()
+                if cat_col  and sel_cat:   filtered = filtered[filtered[cat_col].isin(sel_cat)]
+                if city_col and sel_city:  filtered = filtered[filtered[city_col].isin(sel_city)]
+                if price_col and price_range:
+                    filtered = filtered[(filtered[price_col] >= price_range[0]) &
+                                        (filtered[price_col] <= price_range[1])]
+                if cnt_col and min_cnt is not None:
+                    filtered = filtered[filtered[cnt_col] >= min_cnt]
+                if rating_col and min_rating is not None:
+                    filtered = filtered[filtered[rating_col] >= min_rating]
 
-            if len(filtered) == 0:
-                st.info("Tidak ada destinasi yang sesuai filter. Coba perluas kriteria pencarian.")
+                best_model = xgb_model if metrics["xgb"]["accuracy"] >= metrics["rf"]["accuracy"] else rf_model
+
+                if len(filtered) == 0:
+                    st.info("Tidak ada destinasi yang sesuai filter. Coba perluas kriteria pencarian.")
             else:
                 # Build feature matrix for the filtered rows
                 preds = []
@@ -635,8 +673,8 @@ elif page == "Output":
                         </div>
                         """, unsafe_allow_html=True)
 
-                        for i, row in dest_df.head(30).iterrows():
-                            nm  = row[name_col]  if name_col  else f"Destinasi {i+1}"
+                        for i, (_, row) in enumerate(dest_df.head(30).iterrows(), start=1):
+                            nm  = row[name_col]  if name_col  else f"Destinasi {i}"
                             ct  = row[city_col]  if city_col  else "-"
                             cat = row[cat_col]   if cat_col   else "-"
                             pr  = f"Rp {int(row[price_col]):,}" if price_col else "-"
@@ -645,7 +683,7 @@ elif page == "Output":
                             card_border = f"border-left:3px solid {accent};"
                             st.markdown(f"""
                             <div class="dest-card" style="{card_border}">
-                                <div class="dest-rank" style="background:{bg};color:{accent};">{i+1}</div>
+                                <div class="dest-rank" style="background:{bg};color:{accent};">{i}</div>
                                 <div style="flex:1">
                                     <div class="dest-name">{nm}</div>
                                     <div class="dest-meta">
