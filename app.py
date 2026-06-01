@@ -562,20 +562,6 @@ elif page == "Output":
             desc_col   = find_col(df,
                 "description", "deskripsi", "desc", "keterangan", "detail")
 
-            # Show detected columns (collapsed)
-            with st.expander("Info kolom dataset yang terdeteksi", expanded=False):
-                det_df = pd.DataFrame({
-                    "Fitur": ["Nama Destinasi","Kategori","Kota","Harga","Rating","Jml Ulasan","Latitude","Longitude"],
-                    "Kolom di CSV": [
-                        name_col or "TIDAK DITEMUKAN", cat_col or "TIDAK DITEMUKAN",
-                        city_col or "TIDAK DITEMUKAN", price_col or "TIDAK DITEMUKAN",
-                        rating_col or "TIDAK DITEMUKAN", cnt_col or "TIDAK DITEMUKAN",
-                        lat_col or "TIDAK DITEMUKAN", lon_col or "TIDAK DITEMUKAN",
-                    ]
-                })
-                st.dataframe(det_df, hide_index=True, use_container_width=True)
-                st.caption(f"Semua kolom CSV: {', '.join(df.columns.tolist())}")
-
             # Filter inputs
             fc1, fc2 = st.columns(2)
             with fc1:
