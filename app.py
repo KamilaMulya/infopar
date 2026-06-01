@@ -270,7 +270,7 @@ if page == "Beranda":
     # Stat cards
     c1, c2, c3, c4 = st.columns(4)
     cards = [
-        ("dataset",  "Dataset",    "Indonesia Tourism Destination", "#eff6ff", "#2563EB"),
+        ("map",      "Dataset",    "Indonesia Tourism Destination", "#eff6ff", "#2563EB"),
         ("cpu",      "Algoritma",  "XGBoost & Random Forest",        "#f0fdf4", "#16a34a"),
         ("tag",      "Task",       "Binary Classification",           "#fef9c3", "#ca8a04"),
         ("filter",   "Balancing",  "SMOTE + GridSearchCV 5-fold",     "#fdf4ff", "#9333ea"),
